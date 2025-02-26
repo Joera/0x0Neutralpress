@@ -245,14 +245,26 @@ action:
                     try {
             
                         const assets_files: any[] = await getFilesFromGithub(fm,'assets');
+                        const assets_cids = JSON.parse(JSON.stringify(config.assets.map((a: any) => a.cid)));
                     
                         for (let asset of assets_files) {
                             const assetCid = await this.main.oxo.ctrlr.pinata.uploadFileFromUrl(asset.url, true);
-                            // console.log("pinata image", assetCid);
-                            if (!config.assets.map((a: any) => a.cid).includes(assetCid)) {
+                            // console.log("asset cid", assetCid);
+                            if (!assets_cids.includes(assetCid)) {
+                                console.log("should not be here", assets_cids, assets_cids.includes(assetCid));              
                                 await this.main.oxo.ctrlr.pinata.uploadFileFromUrl(asset.url, false);
-                                config.assets.push({path: asset.path, cid: assetCid});
-                                console.log(`new image uploaded to pinata: ${assetCid}`);
+
+                                const existingAssetIndex = config.assets.findIndex((a: any) => a.path === asset.path);
+                                
+                                if (existingAssetIndex !== -1) {
+                                    // Replace CID for existing asset with same path
+                                    config.assets[existingAssetIndex].cid = assetCid;
+                                    console.log(`updated image CID for ${asset.path}: ${assetCid}`);
+                                } else {
+                                    // Upload new asset and add to config
+                                    config.assets.push({path: asset.path, cid: assetCid});
+                                    console.log(`new image uploaded to pinata: ${assetCid}`);
+                                }
                             } else {
                                 console.log("image already exists in config, skipping upload");
                             }
@@ -260,26 +272,40 @@ action:
 
                         // console.log("config assets", config.assets);
 
-                        const stylesheet_files: any[] = await getFilesFromGithub(fm, 'styles');
+                        let stylesheet_files: any[] = await getFilesFromGithub(fm, 'css');
+
+                        stylesheet_files = stylesheet_files.filter((file: any) => {
+                            return path.extname(file.path) === ".css";
+                        });
 
                         console.log("stylesheet_files", stylesheet_files);
 
                         for (let stylesheet of stylesheet_files) {
 
-                            // "https://raw.githubusercontent.com/joera/website/aa11d1885116f27987a4926e7cf0c58d2193c3be/styles/styles.css"
                             const cid = await this.main.oxo.ctrlr.pinata.uploadFileFromUrl(stylesheet.url, true);
-                            // console.log("pinata stylesheet", cid);
+
                             if (!config.stylesheets.map((a: any) => a.cid).includes(cid)) {
+
                                 await this.main.oxo.ctrlr.pinata.uploadFileFromUrl(stylesheet.url, false);
-                                // needs to be push or replace !!!!
-                                config.stylesheets.push({path: stylesheet.path, cid: cid});
-                                console.log(`new stylesheet uploaded to pinata: ${cid}`);
+
+                                const existingAssetIndex = config.stylesheets.findIndex((a: any) => a.path === stylesheet.path);
+
+                                if (existingAssetIndex !== -1) {
+                                    // Replace CID for existing asset with same path
+                                    config.stylesheets[existingAssetIndex].cid = cid;
+                                    console.log(`updated stylesheet CID for ${stylesheet.path}: ${cid}`);
+                                } else {
+                                    // needs to be push or replace !!!!
+                                    config.stylesheets.push({path: stylesheet.path, cid: cid});
+                                    console.log(`new stylesheet uploaded to pinata: ${cid}`);
+                                }
+
                             } else {
                                 console.log("stylesheet already exists in config, skipping upload");
                             }
                         }
 
-                        // console.log("config stylesheets", config.stylesheets);
+                        console.log("config stylesheets", config.stylesheets);
 
                         const template_files: any[] = await getFilesFromGithub(fm,'templates');
 
@@ -294,12 +320,25 @@ action:
         
                             templateContent = this.insertImageCidsIntoTemplate(templateContent, config.assets, fm.assets_gateway);
 
-                            const cid = await this.main.oxo.ctrlr.pinata.uploadFileFromContent(template.url,templateContent, true);
-                            // console.log("pinata template", cid);
+                            const cid = await this.main.oxo.ctrlr.ipfs.addFileFromUrl(template.url,templateContent, true);
+                           
                             if (!config.templates.map((a: any) => a.cid).includes(cid)) {
-                                await this.main.oxo.ctrlr.pinata.uploadFileFromContent(template.url, templateContent, false);
-                                config.templates.push({path: template.path, cid: cid, body: templateContent});
-                                console.log(` new template uploaded to pinata: ${cid}`);
+
+                                await this.main.oxo.ctrlr.ipfs.addFileFromUrl(template.url, templateContent, false);
+
+                                const existingAssetIndex = config.templates.findIndex((a: any) => a.path === template.path);
+
+                                if (existingAssetIndex !== -1) {
+
+                                    config.templates[existingAssetIndex].cid = cid;
+                                    console.log(`updated template CID for ${template.path}: ${cid}`);
+
+                                } else {
+
+                                    config.templates.push({path: template.path, cid: cid, body: templateContent});
+                                    console.log(` new template uploaded to ipfs: ${cid}`);
+                                }
+                        
                             } else {
                                 console.log("template already exists in config, skipping upload");   
                             }
@@ -309,7 +348,7 @@ action:
 
                         const commit_sha = fm.commit == "latest" ? await getLatestCommitSHA(fm) : fm.commit;
 
-                        const mapping = fetchFileFromGithub(`https://raw.githubusercontent.com/${fm.github_profile}/${fm.github_repo}/${commit_sha}/mapping.json`);
+                        const mapping = await fetchFileFromGithub(`https://raw.githubusercontent.com/${fm.github_profile}/${fm.github_repo}/${commit_sha}/mapping.json`);
 
                         console.log("templatesCid", templatesCid)
 
@@ -320,7 +359,7 @@ action:
                             updateFrontMatter(this.main.plugin.app, file, "config", config_cid);
                             spinner.stop();
 
-                            // await this.updatePublicationContract(fm.contract, config_cid);
+                            await this.updatePublicationContract(fm.contract, config_cid);
 
                         } else {
                             updateFrontMatter(this.main.plugin.app, file, "config", "failed");
@@ -376,7 +415,7 @@ action:
     private insertStylesheetLink(fm: any, templateContent: string, cid: string): string {
         console.log("inserting stylesheet link");
         const styleRegex = /<link[^>]*rel="stylesheet"[^>]*>/;
-        const newStyleLink = `<link rel="stylesheet" href="${fm.assets_gateway}/ipfs/${cid}">`;
+        const newStyleLink = `<link rel="stylesheet" href="${fm.assets_gateway}/ipfs/${cid}?filename=styles.css">`;
         return templateContent.replace(styleRegex, newStyleLink);
     }
 
@@ -411,7 +450,7 @@ action:
             const imgRegex = new RegExp(`<img[^>]+id=["']${filename}["'][^>]*>`, 'gi');
             
             templateContent = templateContent.replace(imgRegex, (match) => {
-                console.log("inserting image cids");
+                // console.log("inserting image cids");
                 return match.replace(/src=["'][^"']*["']/, `src="${assets_gateway}/ipfs/${asset.cid}"`);
             });
         }
@@ -444,4 +483,3 @@ action:
         return cids;
     }
 }
-

@@ -4,7 +4,7 @@ import fs from 'fs';
 import electron from 'electron';
 const net = electron.remote.net;
 
-export const publicationConfig = (fm: any, config: any, templatesCid: string, mapping: any):  DSGPublication => {
+export const publicationConfig = (fm: any, config: any, templatesCid: string, mapping: string):  DSGPublication => {
   
     let content = "{}"; // fs.readFileSync(fm.dev_folder + "/mapping.json", "utf8");
     
@@ -29,7 +29,7 @@ export const publicationConfig = (fm: any, config: any, templatesCid: string, ma
         data_gateway: fm.data_gateway ||fm.storage,
         domains: [domain],
         owners: fm.owners.split(","),
-        mapping,
+        mapping: JSON.parse(mapping),
         name: fm.name,
         rpc: fm.rpc,
         stylesheets: config.stylesheets,
@@ -127,8 +127,6 @@ export const getLatestCommitSHA = async (fm: any, branch = "main") => {
             });
 
             request.on('response', (response: any) => {
-                
-                console.log("response", response)
                 response.on('data', function(chunk?: any) {      
                     const jsonData = JSON.parse(chunk);
                     resolve(jsonData.commit.sha);

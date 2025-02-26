@@ -33,7 +33,7 @@ export const parseNote =  async (main: IMainController, file: TFile) : Promise<a
 	contentItem.slug = slug(title || contentItem.title);
 
 	contentItem.content = await marked(content);
-	contentItem.content = await distributeImages(main, contentItem.content);
+	// contentItem.content = await distributeImages(main, contentItem.content);
 
 	if (title != undefined && title != "") contentItem.title = title;
 	return { streamId, contentItem};
@@ -55,7 +55,7 @@ export const distributeImages = async (main: IMainController, content: string) =
             
 			const originalSrc = srcMatch[1].replace("file://", "");
 			const response = await main.oxo.ctrlr.pinata.upload(originalSrc);
-			const newSrc = `${main.plugin.settings.pinata_gateway}/ipfs/${response}?pinataGatewayToken=${main.plugin.settings.pinata_gateway_key}`;
+			const newSrc = `${main.plugin.settings.pinata_gateway}/ipfs/${response}}`;
 
             // Create new image tag with modified src
             const newImgTag = imgTag.replace(srcMatch[1], newSrc);
