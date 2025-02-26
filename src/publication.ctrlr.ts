@@ -227,7 +227,12 @@ action:
                 if (file != null)  {
             
                     const fm: any = await getFrontMatter(this.main.plugin.app, file);
-                    const config = await this.main.oxo.ctrlr.ipfs.get(fm.config, fm.data_gateway);
+                    
+                    let config = await this.main.oxo.ctrlr.ipfs.get(fm.config, fm.data_gateway);
+                    if (config.Type == "error") {
+                        config = {};
+                    }
+
                     if (config.assets === undefined) { 
                         config.assets = [];
                     }
@@ -248,10 +253,11 @@ action:
                         const assets_cids = JSON.parse(JSON.stringify(config.assets.map((a: any) => a.cid)));
                     
                         for (let asset of assets_files) {
+                            // console.log("asset", asset);
                             const assetCid = await this.main.oxo.ctrlr.pinata.uploadFileFromUrl(asset.url, true);
                             // console.log("asset cid", assetCid);
                             if (!assets_cids.includes(assetCid)) {
-                                console.log("should not be here", assets_cids, assets_cids.includes(assetCid));              
+                                console.log("new asset", assets_cids, assets_cids.includes(assetCid));              
                                 await this.main.oxo.ctrlr.pinata.uploadFileFromUrl(asset.url, false);
 
                                 const existingAssetIndex = config.assets.findIndex((a: any) => a.path === asset.path);
@@ -313,18 +319,17 @@ action:
                             
                             let templateContent = await fetchFileFromGithub(template.url);
 
-                            if (path.basename(template.url) == "head.handlebars") {
+                            if (path.basename(template.url) == "head.handlebars") { 
                                 templateContent = this.insertStylesheetLink(fm, templateContent, config.stylesheets[0].cid);
                             }
 
-        
                             templateContent = this.insertImageCidsIntoTemplate(templateContent, config.assets, fm.assets_gateway);
 
-                            const cid = await this.main.oxo.ctrlr.ipfs.addFileFromUrl(template.url,templateContent, true);
+                            const cid = await this.main.oxo.ctrlr.ipfs.add(templateContent, fm.data_gateway, true);
                            
                             if (!config.templates.map((a: any) => a.cid).includes(cid)) {
 
-                                await this.main.oxo.ctrlr.ipfs.addFileFromUrl(template.url, templateContent, false);
+                                await this.main.oxo.ctrlr.ipfs.add(templateContent, fm.data_gateway, false);
 
                                 const existingAssetIndex = config.templates.findIndex((a: any) => a.path === template.path);
 
@@ -344,27 +349,27 @@ action:
                             }
                         }
 
-                        let templatesCid = await this.main.oxo.ctrlr.ipfs.dagPut(config.templates, fm.data_gateway);
+                            let templatesCid = await this.main.oxo.ctrlr.ipfs.dagPut(config.templates, fm.data_gateway);
 
-                        const commit_sha = fm.commit == "latest" ? await getLatestCommitSHA(fm) : fm.commit;
+                            const commit_sha = fm.commit == "latest" ? await getLatestCommitSHA(fm) : fm.commit;
 
-                        const mapping = await fetchFileFromGithub(`https://raw.githubusercontent.com/${fm.github_profile}/${fm.github_repo}/${commit_sha}/mapping.json`);
+                            const mapping = await fetchFileFromGithub(`https://raw.githubusercontent.com/${fm.github_profile}/${fm.github_repo}/${commit_sha}/mapping.json`);
 
-                        console.log("templatesCid", templatesCid)
+                            console.log("templatesCid", templatesCid)
 
-                        if (templatesCid !== "") {
-                            const publication_config = publicationConfig(fm, config, templatesCid, mapping);
-                            console.log("config", publication_config);
-                            const config_cid = await this.main.oxo.ctrlr.ipfs.add(publication_config, fm.data_gateway);
-                            updateFrontMatter(this.main.plugin.app, file, "config", config_cid);
-                            spinner.stop();
+                            if (templatesCid !== "") {
+                                const publication_config = publicationConfig(fm, config, templatesCid, mapping);
+                                console.log("config", publication_config);
+                                const config_cid = await this.main.oxo.ctrlr.ipfs.add(publication_config, fm.data_gateway);
+                                updateFrontMatter(this.main.plugin.app, file, "config", config_cid);
+                                spinner.stop();
 
-                            await this.updatePublicationContract(fm.contract, config_cid);
+                                await this.updatePublicationContract(fm.contract, config_cid);
 
-                        } else {
-                            updateFrontMatter(this.main.plugin.app, file, "config", "failed");
-                            spinner.stop();    
-                        }
+                            } else {
+                                updateFrontMatter(this.main.plugin.app, file, "config", "failed");
+                                spinner.stop();    
+                            }
 
                     } catch (error) {
                         console.log(error);
