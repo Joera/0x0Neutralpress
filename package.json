@@ -32,6 +32,7 @@
 		"etherscan-api": "^10.3.0",
 		"express": "^4.21.2",
 		"fp-ts": "^2.13.1",
+		"html-entities": "^2.5.2",
 		"io-ts": "^2.2.20",
 		"is-ipfs": "^0.6.0",
 		"marked": "^15.0.6",

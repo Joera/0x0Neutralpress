@@ -21,6 +21,7 @@ class HTMLView extends ItemView {
     setHTML(html: string) {
         this.content = html;
         this.contentEl.empty();
+        
         this.contentEl.innerHTML = html;
     }
 
@@ -45,7 +46,7 @@ export class PreviewCtrlr {
 
     public async display(html: string): Promise<void> {
 
-        console.log(html);
+        // console.log(html);
 
 
         
@@ -68,7 +69,8 @@ export class PreviewCtrlr {
             const styleLinks = [].slice.call(doc.querySelectorAll('link[rel="stylesheet"]'));
             for (const styleLink of styleLinks) {
                 if (styleLink && styleLink.getAttribute('href')) {
-                    await this.injectStylesheet(styleLink.getAttribute('href')!);
+                    console.log(styleLink.getAttribute('href'));
+                   await this.injectStylesheet(styleLink.getAttribute('href')!);
                 }
             }
         }
@@ -128,7 +130,7 @@ export class PreviewCtrlr {
             }
             const css = await response.text();
 
-            // console.log(css);
+            console.log(css);
             
             // Inject CSS into a <style> tag
             const styleTag = document.createElement("style");

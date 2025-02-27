@@ -11,6 +11,7 @@ import { getFrontMatter, updateFrontMatter } from './frontmatter';
 import { verifyNPublication, verifySafeContract } from './contract_verification';
 import path from "path";
 import { NAsset } from "./types";
+import { decode } from "html-entities";
 
 export interface IPublicationCtrlr {
 
@@ -251,13 +252,13 @@ action:
             
                         const assets_files: any[] = await getFilesFromGithub(fm,'assets');
                         const assets_cids = JSON.parse(JSON.stringify(config.assets.map((a: any) => a.cid)));
-                    
+                    ;
                         for (let asset of assets_files) {
                             // console.log("asset", asset);
                             const assetCid = await this.main.oxo.ctrlr.pinata.uploadFileFromUrl(asset.url, true);
-                            // console.log("asset cid", assetCid);
+                            // console.log("precalculated asset cid", assetCid, path.basename(asset.url));
                             if (!assets_cids.includes(assetCid)) {
-                                console.log("new asset", assets_cids, assets_cids.includes(assetCid));              
+                              //  console.log("new asset", assets_cids, assets_cids.includes(assetCid));              
                                 await this.main.oxo.ctrlr.pinata.uploadFileFromUrl(asset.url, false);
 
                                 const existingAssetIndex = config.assets.findIndex((a: any) => a.path === asset.path);
@@ -272,7 +273,7 @@ action:
                                     console.log(`new image uploaded to pinata: ${assetCid}`);
                                 }
                             } else {
-                                console.log("image already exists in config, skipping upload");
+                      //          console.log("image already exists in config, skipping upload");
                             }
                         }
 
@@ -284,14 +285,17 @@ action:
                             return path.extname(file.path) === ".css";
                         });
 
-                        console.log("stylesheet_files", stylesheet_files);
+                     //   console.log("stylesheet_files", stylesheet_files);
 
                         for (let stylesheet of stylesheet_files) {
 
                             const cid = await this.main.oxo.ctrlr.pinata.uploadFileFromUrl(stylesheet.url, true);
 
+                            console.log("precalculated cid", cid);
+
                             if (!config.stylesheets.map((a: any) => a.cid).includes(cid)) {
 
+                                console.log("new stylesheet");
                                 await this.main.oxo.ctrlr.pinata.uploadFileFromUrl(stylesheet.url, false);
 
                                 const existingAssetIndex = config.stylesheets.findIndex((a: any) => a.path === stylesheet.path);
@@ -307,7 +311,7 @@ action:
                                 }
 
                             } else {
-                                console.log("stylesheet already exists in config, skipping upload");
+                            //    console.log("stylesheet already exists in config, skipping upload");
                             }
                         }
 
@@ -316,8 +320,13 @@ action:
                         const template_files: any[] = await getFilesFromGithub(fm,'templates');
 
                         for (let template of template_files) {
+
                             
                             let templateContent = await fetchFileFromGithub(template.url);
+
+                            templateContent = decode(templateContent);
+                            templateContent = templateContent.replace(/\n/g, '');
+                            templateContent = templateContent.replace(/\\([^\\])/g, '$1'); // Remove single backslashes except double backslashes
 
                             if (path.basename(template.url) == "head.handlebars") { 
                                 templateContent = this.insertStylesheetLink(fm, templateContent, config.stylesheets[0].cid);
@@ -326,6 +335,8 @@ action:
                             templateContent = this.insertImageCidsIntoTemplate(templateContent, config.assets, fm.assets_gateway);
 
                             const cid = await this.main.oxo.ctrlr.ipfs.add(templateContent, fm.data_gateway, true);
+
+                           
                            
                             if (!config.templates.map((a: any) => a.cid).includes(cid)) {
 
@@ -345,7 +356,7 @@ action:
                                 }
                         
                             } else {
-                                console.log("template already exists in config, skipping upload");   
+                             //   console.log("template already exists in config, skipping upload");   
                             }
                         }
 
@@ -398,52 +409,18 @@ action:
         return files;
     }
 
-    // private async updateHeadTemplate(fm: any, styleCid: string): Promise<void> {
-    //     const templatePath = fm.dev_folder + '/templates/partials/head.handlebars';
-    //     const fs = require('fs').promises;
-        
-    //     try {
-    //         const content = await fs.readFile(templatePath, 'utf8');
-            
-    //         // Match first link element with rel="stylesheet"
-    //         const styleRegex = /<link[^>]*rel="stylesheet"[^>]*>/;
-    //         const newStyleLink = `<link rel="stylesheet" href="${fm.assets_gateway}/ipfs/${styleCid}?pinataGatewayToken=${this.main.plugin.settings.pinata_gateway_key}">`;
-            
-    //         const updatedContent = content.replace(styleRegex, newStyleLink);
-    //         await fs.writeFile(templatePath, updatedContent, 'utf8');
-    //     } catch (error) {
-    //         console.error('Error updating head template:', error);
-    //         throw error;
-    //     }
-    // }
-
     private insertStylesheetLink(fm: any, templateContent: string, cid: string): string {
         console.log("inserting stylesheet link");
+        
+        // Add CSP meta tag right after <head>
+        const cspMeta = `<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://*.mypinata.cloud; font-src 'self' https://fonts.gstatic.com; img-src 'self' https://*.mypinata.cloud data:;">`;
+        templateContent = templateContent.replace(/<head>/, `<head>\n    ${cspMeta}`);
+        
+        // Replace stylesheet link
         const styleRegex = /<link[^>]*rel="stylesheet"[^>]*>/;
         const newStyleLink = `<link rel="stylesheet" href="${fm.assets_gateway}/ipfs/${cid}?filename=styles.css">`;
         return templateContent.replace(styleRegex, newStyleLink);
     }
-
-    // private async injectImageCidsIntoTemplates(content: string, assets: NAsset[], assets_gateway: string): Promise<string> {
-    //     const templateFiles = this.findHandlebarsFiles(devFolder);another
-    //     const filename = imageFile.substring(0, imageFile.lastIndexOf('.'));
-        
-    //     // Match img tags where id equals the filename (without extension)
-    //     const imgRegex = new RegExp(`<img[^>]+id=["']${filename}["'][^>]*>`, 'gi');
-        
-    //     for (const templatePath of templateFiles) {
-    //         const content = fs.readFileSync(templatePath, 'utf-8');
-    //         const updatedContent = content.replace(imgRegex, (match) => {
-    //             console.log("replacing");
-    //             return match.replace(/src=["'][^"']*["']/, `src="${assets_gateway}/ipfs/${cid}?pinataGatewayToken=${this.main.plugin.settings.pinata_gateway_key}"`);
-    //         });
-
-    //         if (content !== updatedContent) {
-    //             fs.writeFileSync(templatePath, updatedContent, 'utf-8');
-    //             console.log(` Updated image reference in ${templatePath}`);
-    //         }
-    //     }
-    // }
 
     private insertImageCidsIntoTemplate(templateContent: string, assets: NAsset[], assets_gateway: string): string {
        

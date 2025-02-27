@@ -121,13 +121,13 @@ export default class DSG extends Plugin {
 			}
 		  });
 		
-		this.addCommand({
-			id: 'bulk-upload',
-			name: 'bulk upload',
-			callback: () => {
-				return this.ctrlr.bulkUpload();
-			}
-		});
+		// this.addCommand({
+		// 	id: 'bulk-upload',
+		// 	name: 'bulk upload',
+		// 	callback: () => {
+		// 		return this.ctrlr.bulkUpload();
+		// 	}
+		// });
 
 		
 	}	
